@@ -1,0 +1,156 @@
+---
+title: "Nuran Ghoneim - Final Project"
+output: word_document
+date: '2022-12-09'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+library(tidyverse)
+```
+
+# How Salary Affects Students' College Major Decisions
+
+I'll be comparing two data sets to see if students enroll in certain majors because of the salary associated with the degree. The first data set called 'studentsEnrolledByMajor', and it shows the majors grouped by type and the estimate number of students enrolled along with the margin of error. The second data set is called 'salaryDegree' which it shows each major and it's starting salary, mid-career salary and percentiles.
+
+## Cleaning the Data
+
+First I'm going to read in my first data set from my desktop. As you can see there's some cleaning I need to do. I need to get rid of rows that only present as sub titles, unnecessary characters, and convert the second column to integers. 
+
+```{r}
+studentsEnrolled = read.csv("C:/Users/nuran/Desktop/STA 9750/Final Project/studentsEnrolledByMajor.csv")
+
+head(studentsEnrolled)
+```
+
+I dropped the sub heading rows as well as the third column since I won't be using it. Then I got rid of the commas that appear in column 2 and converted it to integer. Finally, I renamed the first column to get rid of the characters before "degree". Once I did that, this data set was cleaned and ready for use.  
+
+```{r}
+studentsEnrolled <- studentsEnrolled[-c(1, 12), ]
+studentsEnrolled = select(studentsEnrolled, -3)
+```
+
+```{r}
+studentsEnrolled$Estimate<-gsub(",","",as.character(studentsEnrolled$Estimate))
+
+studentsEnrolled$Estimate = strtoi(studentsEnrolled$Estimate)
+```
+
+```{r}
+names(studentsEnrolled)[names(studentsEnrolled) == 'ï..Degree'] <- 'Degrees'
+```
+
+My second data set was originally called "salaryByDegree" but the majors were individually listed out while the other file is listed by the group types of majors. So in order to make them the same since that's the column I'll be merging on, I grouped the majors into their respective categories and averaged their salaries for each group. So below is the second data set I'll be using called "salaryDegree", which doesn't need much cleaning as you can see below. 
+
+```{r}
+salaryDegree = read.csv("C:/Users/nuran/Desktop/STA 9750/Final Project/salaryDegree.csv")
+head(salaryDegree)
+```
+
+I renamed the first column to Degrees, to match the first data set, so I wouldn't have to specify which columns I want to merge on. Then I proceeded to merge the two data sets.
+
+```{r}
+names(salaryDegree)[names(salaryDegree) == 'ï..Undergraduate.Major'] <- 'Degrees'
+```
+
+```{r}
+combinedDf = merge(salaryDegree, studentsEnrolled)
+```
+
+I also renamed the last column to a more useful and helpful title. 
+
+```{r}
+names(combinedDf)[names(combinedDf) == 'Estimate'] <- 'Enrolled_Students'
+```
+
+## Taking a look at the data
+
+First I wanted to see what majors most students are enrolled in so I graphed it. As you can see below, most students are enrolled in Education followed by Science and Engineering Related fields with Social sciences and Engineering coming in third and fourth place. All other majors after engineering are lower in numbers, making those the top 4 degrees students are interested in. 
+
+```{r}
+barChart<-ggplot(data=combinedDf, aes(x=Degrees, y=Enrolled_Students, fill=Degrees)) +
+  geom_bar(stat="identity")
+barChart+theme(axis.text.x = element_blank(), legend.position="bottom")
+
+```
+
+Next I wanted to see which degrees earn you the most, so following the same steps as above, I developed this graph below. As you can see, the top earning field is Science and Engineering Related fields with Engineering coming in second and Computers, Math & Stats coming in third. 
+
+Now this is very interesting because while Education was the most popular degree, it's not in the top 3 regarding starting salary. Science and Engineering Related fields being the top earner does make sense and it does fall in line with the previous results. Lastly, Computers, Math and Stats is the third top earner. Despite it not being a popular subject as previously seen, it could make sense that the starting salary is pretty high, to account for the lack of people in this field. Regardless, these two graphs do seem to demonstrate that despite certain degrees being top earners, not all may be sought after by students. 
+
+```{r}
+barChart<-ggplot(data=combinedDf, aes(x=Degrees, y=Starting.Median.Salary, fill=Degrees)) +
+  geom_bar(stat="identity")
+barChart+theme(axis.text.x = element_blank(), legend.position="bottom")
+```
+
+Now that I've gotten an idea of what the data looks like, I decided to run a multi-linear regression to see how these variables correlate with each other. As you can see, none of the p-values appear to be statistically significant, the r-squared value, it's 0.49, meaning it's not a strong linear relationship and the low t-values suggest they're not highly significant. 
+
+```{r}
+multi_fit = lm(combinedDf$Enrolled_Students ~ Starting.Median.Salary + Mid.Career.Median.Salary + Mid.Career.10th.Percentile.Salary + Mid.Career.25th.Percentile.Salary + Mid.Career.75th.Percentile.Salary + Mid.Career.90th.Percentile.Salary, data = combinedDf)
+summary(multi_fit)
+```
+
+I created indexes to match the Degrees so I could run a linear regression on the degrees themselves.
+
+```{r}
+degreeIndex = c(1,2,3,4,5,6,7,8,9,10,11,12,13, 14)
+combinedDf$degreeIndex = degreeIndex
+```
+
+As you can see below, there is no linear relationship, as indicated by the correlation which is -0.02, between the degrees and how many students enrolled in said degrees as predicted by the previous regression. You can also see that the data doesn't fit the model at all, which is also indicated by the r-squared value which is 0.0005. So I fit the model against the residuals and you can see there's a lot of dispersion between the data points and is definitely not linear, more of a cosine graph. 
+
+```{r}
+cor(combinedDf$degreeIndex, combinedDf$Enrolled_Students)
+
+combinedDf_fit = lm(Enrolled_Students ~ degreeIndex, data = combinedDf)
+summary(combinedDf_fit)
+
+plot(Enrolled_Students ~ degreeIndex,
+data = combinedDf,
+main = "Students Enrolled by Degree")
+abline(combinedDf_fit)
+```
+
+```{r}
+plot(fitted(combinedDf_fit), resid(combinedDf_fit),
+xlab = "Fitted", ylab = "Residuals", main = "Fitted versus Residuals")
+abline(h = 0)
+
+```
+
+I plotted this same variables below just to get a better representation of how the data is dispersed. As you can see, the degrees are numbered in the same order of the majors listed previously. It rises and dips depending on the degrees, and while some do make sense, some rises and dips occur around majors you wouldn't expect, since certain majors do earn you a higher starting salary.  
+
+```{r}
+ggplot(combinedDf) +
+geom_smooth(aes(x = degreeIndex, y = Enrolled_Students))
+```
+
+## Final Thoughts
+
+Based on what I’ve seen, I believe that occupational salary does not dictate what students major in. The multi-linear regression revealed there’s no correlation between salary and enrolled students by degrees. The bar graphs I plotted also showed that while some majors may earn you a higher salary, not all of them are fields that students seek out. Finally, the last the linear regression I ran along with the plot I displayed only further justified that there’s no linear correlation. Incoming students do not base their majors or field of study on how much they’ll make once they graduate. It could be one factor that they take into consideration but it may not necessarily be the deciding factor.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
